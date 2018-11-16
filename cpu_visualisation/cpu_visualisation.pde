@@ -43,6 +43,10 @@ long lastTick;
 byte instPhase = 0;
 
 boolean PCinc, ALUsub;
+boolean ALUfr;
+boolean ALUc, ALUz;
+
+boolean stop;
 
 byte cmpCon[] = {
   (byte)unbinary("00000000"), 
@@ -101,7 +105,7 @@ byte programs[][] = {{
     (byte)unbinary("00000000"), 
     (byte)unbinary("00000000")
   }, {
-    (byte)unbinary("00000001"), 
+    (byte)unbinary("00000000"), 
     (byte)unbinary("00000000"), 
     (byte)unbinary("00000001"), 
     (byte)unbinary("00000000"), 
@@ -136,20 +140,20 @@ byte programs[][] = {{
     (byte)unbinary("00000000"), 
     (byte)unbinary("00000000"), 
 
-    (byte)unbinary("01111010"), 
+    (byte)unbinary("01111100"), 
     (byte)unbinary("10110000"), 
-    (byte)unbinary("01111011"), 
+    (byte)unbinary("01111101"), 
     (byte)unbinary("10110000"), 
-    (byte)unbinary("10011011"), 
-    (byte)unbinary("10001100"), 
+    (byte)unbinary("10011101"), 
+    (byte)unbinary("10001110"), 
     (byte)unbinary("00010000"), 
+    (byte)unbinary("01011011"), 
     (byte)unbinary("10110000"), 
-    (byte)unbinary("10011100"), 
+    (byte)unbinary("10011110"), 
     (byte)unbinary("00110101"), 
+    (byte)unbinary("01100000"), 
     (byte)unbinary("00000000"), 
     (byte)unbinary("00000001"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
     (byte)unbinary("00000000"), 
     (byte)unbinary("00000000")
 }};
@@ -222,6 +226,9 @@ void setProgram() {
 }
 
 String getActionStr() {
+  if (stop) {
+    return "Machine halted, please reset";
+  }
   if (instPhase == 1) {
     return "Fetching instruction (1/2)";
   }
@@ -315,7 +322,7 @@ void draw() {
   textSize(48);
   text("What does it do?", -50, -cmpHeight * 2.75 + 100, 32);
   textSize(28);
-  text("Also known as the accumulator, stores\na temporary value\n\nStores another temporary value\n\n\nPerforms all computations\nand comparison operations\n\nStores current executed address\nof program\n\nThe value in this register will\nbe shown on the display\n\nStores the current instruction\nbeing executed\n\nContains the lower 4 bits of the\nInstruction Register, AKA the operand\n\nTells the RAM what address\nto read/write\n\nControls all the registers and what they do,\nand also shows the currently performed action\n(in red), the clock pulse and the instruction\nphase", -50, -350, 32);
+  text("Also known as the accumulator, stores\na temporary value\n\nStores another temporary value\n\n\nPerforms all computations and comparison\noperations, the two extra bits are flags\n\nStores current executed address\nof program\n\nThe value in this register will\nbe shown on the display\n\nStores the current instruction\nbeing executed\n\nContains the lower 4 bits of the\nInstruction Register, AKA the operand\n\nTells the RAM what address\nto read/write\n\nControls all the registers and what they do,\nand also shows the currently performed action\n(in red), the clock pulse and the instruction\nphase", -50, -350, 32);
   textAlign(CENTER);
   translate(0, 0, -height / 2 - 300);
   rotateY(radians(-90));
@@ -369,11 +376,11 @@ void draw() {
   updateMove();
   camera(osx, osy, zoom, osx, osy, 0, 0, 1, 0);
 
-  if (keyPressed && key == ' ' && speed == 0 && millis() - lastTick > 500) {
+  if (!stop && keyPressed && key == ' ' && speed == 0 && millis() - lastTick > 500) {
     lastTick = millis();
     update();
   }
-  if (speed != 0 && millis() - lastTick >= 1000 / speed) {
+  if (!stop && speed != 0 && millis() - lastTick >= 1000 / speed) {
     lastTick = millis();
     update();
   }
@@ -496,6 +503,9 @@ void draw() {
     pressed = true;
   } else if (rot == 90 && keyPressed && key == 'r') {
     instPhase = 0;
+    stop = false;
+    ALUc = false;
+    ALUz = false;
     setProgram();
   } else {
     pressed = false;
@@ -520,17 +530,33 @@ void update() {
   } else {
     PCinc = false;
 
-    if (instPhase == 4 && (cmpCon[5] & 0xF0) == ((byte)unbinary("00010000") & 0xF0)) { // ADD
+    if (instPhase == 4 && (cmpCon[5] & 0xF0) == ((byte)unbinary("00010000") & 0xF0)) { // ADD (1)
       ALUsub = false;
+      ALUfr = true;
+    }
+    if (instPhase == 5 && (cmpCon[5] & 0xF0) == ((byte)unbinary("00010000") & 0xF0)) { // ADD (2)
+      ALUfr = false;
       moveData(1, 0);
-    } else if (instPhase == 4 && (cmpCon[5] & 0xF0) == ((byte)unbinary("00100000") & 0xF0)) { // SUB
+    }
+    if (instPhase == 4 && (cmpCon[5] & 0xF0) == ((byte)unbinary("00100000") & 0xF0)) { // SUB (1)
       ALUsub = true;
+      ALUfr = true;
+    }
+    if (instPhase == 5 && (cmpCon[5] & 0xF0) == ((byte)unbinary("00100000") & 0xF0)) { // SUB (2)
+      ALUfr = false;
       moveData(1, 0);
-    } 
+    }
     if (instPhase == 4 && (cmpCon[5] & 0xF0) == ((byte)unbinary("00110000") & 0xF0)) { // JMP
       moveData(6, 3);
-    } else if (instPhase == 4 && (cmpCon[5] & 0xF0) == ((byte)unbinary("01100000") & 0xF0)) { // HLT
-      speed = 0;
+    }
+    if (instPhase == 4 && (cmpCon[5] & 0xF0) == ((byte)unbinary("01000000") & 0xF0) && ALUz) { // JZ (Z = 1)
+      moveData(6, 3);
+    }
+    if (instPhase == 4 && (cmpCon[5] & 0xF0) == ((byte)unbinary("01010000") & 0xF0) && ALUc) { // JC (C = 1)
+      moveData(6, 3);
+    }
+    if (instPhase == 4 && (cmpCon[5] & 0xF0) == ((byte)unbinary("01100000") & 0xF0)) { // HLT
+      stop = true;
     } 
     if (instPhase == 4 && (cmpCon[5] & 0xF0) == ((byte)unbinary("01110000") & 0xF0)) { // LDA 1
       moveData(6, 7);
@@ -852,6 +878,18 @@ void drawParts() {
   } else {
     cmpCon[1] = (byte)(cmpCon[0] + cmpCon[2]);
   }
+  if (ALUfr) {
+    if (cmpCon[1] == 0) {
+      ALUz = true;
+    } else {
+      ALUz = false;
+    }
+    if ((ALUsub && int(cmpCon[0] & 0xFF) - int(cmpCon[2] & 0xFF) < 0) || (!ALUsub && int(cmpCon[0] & 0xFF) + int(cmpCon[2] & 0xFF) > 255)) {
+      ALUc = true;
+    } else {
+      ALUc = false;
+    }
+  }
   if (mv && (src == 1 || des == 1)) {
     fill(40);
   } else {
@@ -861,26 +899,33 @@ void drawParts() {
   box(cmpWidth - padding * 2, cmpHeight - padding * 2, 30);
   translate(0, 30, 16);
   stroke(0);
+  fill(255 - int(ALUc) * 255, 255 - int(ALUc) * 255, 255);
+  ellipse(-165 + 15, 0, 20, 20);
+  fill(255 - int(ALUz) * 255, 255 - int(ALUz) * 255, 255);
+  ellipse(-135 + 15, 0, 20, 20);
+  
   fill(255 - (cmpCon[1] & unbinary("10000000")) * 255, 255 - (cmpCon[1] & unbinary("10000000")) * 255, 255);
-  ellipse(-105, 0, 20, 20);
+  ellipse(-75 + 15, 0, 20, 20);
   fill(255 - (cmpCon[1] & unbinary("01000000")) * 255, 255 - (cmpCon[1] & unbinary("01000000")) * 255, 255);
-  ellipse(-75, 0, 20, 20);
+  ellipse(-45 + 15, 0, 20, 20);
   fill(255 - (cmpCon[1] & unbinary("00100000")) * 255, 255 - (cmpCon[1] & unbinary("00100000")) * 255, 255);
-  ellipse(-45, 0, 20, 20);
+  ellipse(-15 + 15, 0, 20, 20);
   fill(255 - (cmpCon[1] & unbinary("00010000")) * 255, 255 - (cmpCon[1] & unbinary("00010000")) * 255, 255);
-  ellipse(-15, 0, 20, 20);
+  ellipse(15 + 15, 0, 20, 20);
   fill(255 - (cmpCon[1] & unbinary("00001000")) * 255, 255 - (cmpCon[1] & unbinary("00001000")) * 255, 255);
-  ellipse(15, 0, 20, 20);
+  ellipse(45 + 15, 0, 20, 20);
   fill(255 - (cmpCon[1] & unbinary("00000100")) * 255, 255 - (cmpCon[1] & unbinary("00000100")) * 255, 255);
-  ellipse(45, 0, 20, 20);
+  ellipse(75 + 15, 0, 20, 20);
   fill(255 - (cmpCon[1] & unbinary("00000010")) * 255, 255 - (cmpCon[1] & unbinary("00000010")) * 255, 255);
-  ellipse(75, 0, 20, 20);
+  ellipse(105 + 15, 0, 20, 20);
   fill(255 - (cmpCon[1] & unbinary("00000001")) * 255, 255 - (cmpCon[1] & unbinary("00000001")) * 255, 255);
-  ellipse(105, 0, 20, 20);
+  ellipse(135 + 15, 0, 20, 20);
   translate(0, -30, -16);
-  translate(cmpWidth / -2, -cmpHeight + cmpHeight / -2, -16);
-  fill(255);
   textSize(24);
+  fill(255);
+  text("C", -165 + 25, 15, 32);
+  text("Z", -135 + 25, 15, 32);
+  translate(cmpWidth / -2, -cmpHeight + cmpHeight / -2, -16);
   text("Arithmetic Logic Unit", cmpWidth / 2, cmpHeight + cmpHeight / 2 - 30, 32);
   textSize(32);
 
@@ -1150,7 +1195,7 @@ void drawParts() {
   box(cmpWidth * 2 + busWidth - padding * 2, (height + 25) - (cmpHeight * 4 + padding + 50) - padding * 2 - 50, 30);
   translate(0, 30, 16);
   stroke(0);
-  fill(255 - int((speed == 0 && keyPressed && key == ' ') || (speed != 0 && millis() - lastTick < 1000 / speed / 4)) * 255, 255 - int((speed == 0 && keyPressed && key == ' ') || (speed != 0 && millis() - lastTick < 1000 / speed / 4)) * 255, 255);
+  fill(255 - int(!stop && ((speed == 0 && keyPressed && key == ' ') || (speed != 0 && millis() - lastTick < 1000 / speed / 4))) * 255, 255 - int(!stop && ((speed == 0 && keyPressed && key == ' ') || (speed != 0 && millis() - lastTick < 1000 / speed / 4))) * 255, 255);
   ellipse((cmpWidth / 2 + busWidth / 4 - padding / 2 + 50) - 105, 0, 20, 20);
   fill(255 - int(instPhase == 1) * 255, 255 - int(instPhase == 1) * 255, 255);
   ellipse((cmpWidth / 2 + busWidth / 4 - padding / 2 + 50) - 15, 0, 20, 20);
