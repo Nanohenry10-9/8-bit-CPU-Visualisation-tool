@@ -1,54 +1,53 @@
-final int padding = 15; // 15!
+int padding = 15; // shall not be changed
 
-int cmpWidth = 400;
+int cmpWidth = 400; // Layout
 int cmpHeight = 200;
 int busWidth = 300;
 
-int tx, ty, ttx, tty;
-boolean mv;
-int src, des;
+int tx, ty, ttx, tty; // "Data carrier" location and target
+boolean mv; // "Data carrier" moving?
+int src, des; // Source and destination registers
+boolean fbit; // 4-bit "data carrier"?
 
-PFont font, segment;
+PFont font, segment; // Fonts for general text and display
 
-float angley;
+float speed = 0.5; // Clock frequency
+String speedStr = "0.5Hz"; // Clock frequency display string
 
-float speed = 1; // <5 is good
-String speedStr = "1.0";
+int animator, cover; // The hardwiring animation, CPU cover location
 
-int animator, cover;
+int rot, urot; // Cube angles in x- and y-directions
 
-int rot, urot;
+float osx, osy; // Camera location (offset)
+float zoom = 2000; // Zoom (default 2000)
 
-float osx, osy;
-float zoom = 2000;
+boolean rotl, rotr; // Rotation towards left/right?
+int rott; // Target angle
 
-boolean rotl, rotr;
-int rott;
+boolean rotu, urotd; // Rotation happening upwards? (urotd: ???)
 
-boolean rotu, urotd;
-
-String programStrs[] = {
+String programStrs[] = { // The program titles
   "none", 
   "addition", 
   "fibonacci"
 };
 
-String umodeStr = "signed";
-int program;
-boolean umode;
-boolean pressed;
+String umodeStr = "signed"; // The unsigned/signed display mode setting (string)
+int program; // The selected program
+boolean umode; // The unsigned/signed display mode setting (boolean)
+boolean pressed; // A key is pressed?
 
-long lastTick;
+long lastTick; // Last clock update in milliseconds since start of application
 
-byte instPhase = 0;
+byte instPhase = 0; // Instruction phase (1, 2, 3, 4 or 5)
 
-boolean PCinc, ALUsub;
-boolean ALUfr;
-boolean ALUc, ALUz;
+boolean PCinc, ALUsub; // PC increment happening, ALU in subtraction mode
+boolean ALUfr; // ALU flag update
+boolean ALUc, ALUz; // ALU flags (carry, zero)
 
-boolean stop;
+boolean stop; // Stopped? (on HLT)
 
-byte cmpCon[] = {
+byte cmpCon[] = { // Component data in order
   (byte)unbinary("00000000"), 
   (byte)unbinary("00000000"), 
   (byte)unbinary("00000000"), 
@@ -59,7 +58,7 @@ byte cmpCon[] = {
   (byte)unbinary("00000000")
 };
 
-byte ramCon[] = {
+byte ramCon[] = { // RAM data
   (byte)unbinary("00000000"), 
   (byte)unbinary("00000000"), 
   (byte)unbinary("00000000"), 
@@ -78,7 +77,7 @@ byte ramCon[] = {
   (byte)unbinary("00000000")
 };
 
-byte programs[][] = {{
+byte programs[][] = {{ // Changeable programs
     (byte)unbinary("00000000"), 
     (byte)unbinary("00000000"), 
     (byte)unbinary("00000000"), 
@@ -158,7 +157,7 @@ byte programs[][] = {{
     (byte)unbinary("00000000")
 }};
 
-String instructionStr[] = {
+String instructionStr[] = { // Instruction descriptions
   "ERROR", 
   "Add B to A", 
   "Subtract B from A", 
@@ -173,7 +172,7 @@ String instructionStr[] = {
   "Output A"
 };
 
-String rawInstructionStr[] = {
+String asmInstructionStr[] = { // Instruction mnemonics (when decoding opcode)
   "NONE", 
   "ADD", 
   "SUB", 
@@ -188,7 +187,7 @@ String rawInstructionStr[] = {
   "OUT"
 };
 
-String getInst(byte b) {
+String getInst(byte b) { // Strings used for RAM data explanation
   switch ((b >> 4) & 0xF) {
   case 1:
   case 2:
@@ -216,7 +215,7 @@ String getInst(byte b) {
   return "Value " + str(b);
 }
 
-void setProgram() {
+void setProgram() { // Switch program
   for (int i = 0; i < 8; i++) {
     cmpCon[i] = programs[program][i];
   }
@@ -225,29 +224,29 @@ void setProgram() {
   }
 }
 
-String getActionStr() {
+String getActionStr() { // Get current CU information display text
   if (stop) {
     return "Machine halted, please reset";
   }
   if (instPhase == 1) {
-    return "Fetching instruction (1/2)";
+    return "Moving address from PC to MAR";
   }
   if (instPhase == 2) {
-    return "Fetching instruction (2/2)";
+    return "Moving value from RAM to IR";
   }
   if (instPhase == 3) {
-    return "Incrementing PC";
+    return "Incrementing Program Counter";
   }
   if (instPhase == 4) {
-    return "Executing instruction " + rawInstructionStr[(cmpCon[5] & 0xF0) >> 4] + " (1/2)";
+    return "Executing instruction " + asmInstructionStr[(cmpCon[5] & 0xF0) >> 4] + " (1/2)";
   }
   if (instPhase == 5) {
-    return "Executing instruction " + rawInstructionStr[(cmpCon[5] & 0xF0) >> 4] + " (2/2)";
+    return "Executing instruction " + asmInstructionStr[(cmpCon[5] & 0xF0) >> 4] + " (2/2)";
   }
   return "";
 }
 
-void mouseWheel(MouseEvent e) {
+void mouseWheel(MouseEvent e) { // Keep track of scrolling (for zoom)
   zoom += e.getCount() * 100;
   zoom = constrain(zoom, 1000, 3000);
 }
@@ -257,10 +256,8 @@ void setup() {
   font = loadFont("Consolas-Bold-32.vlw");
   segment = createFont("7-segment.ttf", 100);
   textFont(font);
-  textAlign(CENTER);
-  frameRate(120);
+  textAlign(LEFT);
   noSmooth();
-  //hint(ENABLE_DEPTH_SORT);
 }
 
 void draw() {
@@ -280,7 +277,7 @@ void draw() {
   text("Processor Architecture\n(Von Neumann)", 0, cmpWidth * -1.5 + 400, 32);
   textSize(32);
   translate(0, 0, 32);
-  text("The Von Neumann architecture means that the processor and all of it's components have access to the same Random Accesss Memory (also called the same address space). Another option (though not the only one) would be the Harvard architecture, with separate memory locations and data buses for the instructions and data. This would make it faster, but also a lot more error-prone.", -400, 0, 800, 400);
+  text("The Von Neumann architecture means that the processor and all of it's components have access to the same Random-Accesss Memory (also called the same address space). Another option (though not the only one) would be the Harvard architecture, with separate memory locations and data buses for the instructions and data. This would make it faster, but also a lot more error-prone.", -400, 0, 800, 400);
   translate(0, 0, -32);
   rotateZ(radians(-rot));
   translate(0, 0, -height / 2 - 100);
@@ -300,7 +297,9 @@ void draw() {
   translate(0, 0, -16);
   textSize(32);
   fill(255);
-  text("[U] toggle unsigned/signed display mode: " + umodeStr + "\n[P] select executed program: " + programStrs[program] + "\n[+/-] increase/decrease clock speed: " + speedStr + "\n[R] reset", 0, 0, 32);
+  textAlign(LEFT);
+  text("[U] toggle unsigned/signed display mode: " + umodeStr + "\n[P] select executed program: " + programStrs[program] + "\n[+/-] increase/decrease clock frequency: " + speedStr + "\n[R] reset", -450, 0, 32);
+  textAlign(CENTER);
   textSize(48);
   text("Configuration", 0, -330, 32);
   textSize(32);
@@ -362,15 +361,11 @@ void draw() {
   translate(0, -30, -32);
   fill(255);
   textSize(48);
-  text("Random Access Memory contents", 0, -330, 32);
+  text("Random-Access Memory contents", 0, -330, 32);
   textSize(32);
 
   translate(0, 0, -height / 2 - 300);
   rotateY(radians(-90));
-  /*noFill();
-  stroke(255);
-  strokeWeight(10);
-  box(height + 600, height + 200, height + 600);*/
   translate(-cmpWidth * 1.5 - busWidth / 2, -height / 2, height / 2 + 300);
   drawParts();
   updateMove();
@@ -481,7 +476,7 @@ void draw() {
         speed += 0.25;
       }
       if (speed != 0) {
-        speedStr = str(speed);
+        speedStr = str(speed) + "Hz";
       } else {
         speedStr = "Manual stepping";
       }
@@ -495,7 +490,7 @@ void draw() {
         speed -= 0.25;
       }
       if (speed != 0) {
-        speedStr = str(speed);
+        speedStr = str(speed) + "Hz";
       } else {
         speedStr = "Manual stepping";
       }
@@ -587,7 +582,7 @@ void update() {
   }
 }
 
-void moveData(int s, int d) {
+void moveData(int s, int d) { // Set up "data carrier"
   if (s == d) {
     return;
   }
@@ -615,10 +610,11 @@ void moveData(int s, int d) {
     }
     tty = cmpHeight * (d % 4) + cmpHeight / 2;
   }
+  fbit = (src == 3 || src == 6 || src == 7);
   mv = true;
 }
 
-void updateMove() {
+void updateMove() { // Update "data carrier"
   int centerx = cmpWidth + busWidth / 2;
   float tmp = speed;
   if (speed == 0) {
@@ -627,19 +623,19 @@ void updateMove() {
   if (mv) {
     if (ty != tty) {
       if (tx != centerx) {
-        tx += (centerx - tx) / abs(centerx - tx) * 20 * speed;
-        if (abs(tx - centerx) < 20 * speed) {
+        tx += (centerx - tx) / abs(centerx - tx) * 30 * speed;
+        if (abs(tx - centerx) < 30 * speed) {
           tx = centerx;
         }
       } else {
-        ty += (tty - ty) / abs(tty - ty) * 20 * speed;
-        if (abs(ty - tty) < 20 * speed) {
+        ty += (tty - ty) / abs(tty - ty) * 30 * speed;
+        if (abs(ty - tty) < 30 * speed) {
           ty = tty;
         }
       }
     } else {
-      tx += (ttx - tx) / abs(ttx - tx) * 20 * speed;
-      if (abs(tx - ttx) < 20 * speed) {
+      tx += (ttx - tx) / abs(ttx - tx) * 30 * speed;
+      if (abs(tx - ttx) < 30 * speed) {
         tx = ttx;
       }
     }
@@ -657,8 +653,9 @@ void updateMove() {
   speed = tmp;
 }
 
-void drawParts() {
+void drawParts() { // Draw the processor view (not in draw() because too long)
   translate(0, 0, 1);
+  // Upper-upper left vertical line
   if (mv && (src == 0 || des == 0)) {
     stroke(0, 0, 255);
     strokeWeight(10);
@@ -667,6 +664,7 @@ void drawParts() {
     strokeWeight(2);
   }
   line(cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 2 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
+  // Upper-lower left vertical line
   if (mv && (src <= 1 || des <= 1)) {
     stroke(0, 0, 255);
     strokeWeight(10);
@@ -675,6 +673,7 @@ void drawParts() {
     strokeWeight(2);
   }
   line(cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 2 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 3 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
+  // Lower-upper left vertical line
   if (mv && (src <= 2 || des <= 2)) {
     stroke(0, 0, 255);
     strokeWeight(10);
@@ -683,7 +682,8 @@ void drawParts() {
     strokeWeight(2);
   }
   line(cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 3 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 4 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
-  if (mv && (src <= 3 || des <= 3)) {
+  // Lower-lower left vertical line
+  if ((mv && (src <= 3 || des <= 3)) || PCinc) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -692,6 +692,7 @@ void drawParts() {
   }
   line(cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 4 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 4 + padding + 100);
 
+  // Upper-upper left horizontal line
   if (mv && (src == 0 || des == 0)) {
     stroke(0, 0, 255);
     strokeWeight(10);
@@ -700,6 +701,7 @@ void drawParts() {
     strokeWeight(2);
   }
   line(cmpWidth - padding, cmpHeight - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
+  // Upper-lower left horizontal line
   if (mv && (src == 1 || des == 1)) {
     stroke(0, 0, 255);
     strokeWeight(10);
@@ -708,6 +710,7 @@ void drawParts() {
     strokeWeight(2);
   }
   line(cmpWidth - padding, cmpHeight * 2 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 2 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
+  // Lower-upper left horizontal line
   if (mv && (src == 2 || des == 2)) {
     stroke(0, 0, 255);
     strokeWeight(10);
@@ -716,7 +719,8 @@ void drawParts() {
     strokeWeight(2);
   }
   line(cmpWidth - padding, cmpHeight * 3 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 3 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
-  if (mv && (src == 3 || des == 3)) {
+  // Lower-lower left horizontal line
+  if ((mv && (src == 3 || des == 3)) || PCinc) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -801,8 +805,11 @@ void drawParts() {
   line(cmpWidth + busWidth / 2 + (cmpWidth + busWidth / 2 - padding), (cmpHeight * 4 + padding + 50) + ((height + 25) - (cmpHeight * 4 + padding + 50)) / 2, cmpWidth * 2 + busWidth + cmpWidth / 2 + 50 - (cmpWidth / 2 - padding), (cmpHeight * 4 + padding + 50) + ((height + 25) - (cmpHeight * 4 + padding + 50)) / 2);
 
   translate(0, 0, 2);
+  
+  // Green bus
+  
   noStroke();
-  fill(0, 127, 0);
+  fill(0, 127, 0, 200);
   rect(cmpWidth + busWidth / 2 - 25, cmpHeight / 2 - 25, 50, (cmpHeight * 4 + padding) - (cmpHeight / 2 - 25));
   rect(cmpWidth - padding, cmpHeight / 2 - 25, busWidth + padding * 2, 50);
   rect(cmpWidth - padding, cmpHeight + cmpHeight / 2 - 25, busWidth + padding * 2, 50);
@@ -811,6 +818,8 @@ void drawParts() {
   rect(cmpWidth + busWidth / 2 - 25, cmpHeight * 4 + padding, busWidth / 2 + cmpWidth + padding * 2 + 100, 50);
   translate(0, 0, -3);
 
+  // CPU case
+  
   stroke(0);
   strokeWeight(2);
   fill(127);
@@ -834,6 +843,9 @@ void drawParts() {
    vertex(cmpWidth * 2 + busWidth + 25 - cover, height + 25, 40);
    vertex(-25 - cover, height + 25, 40);
    endShape(CLOSE);*/
+
+  // Components: A>ALU<B PC OR IR>OP MAR
+  // < or > = connection, hardwiring
 
   stroke(0);
   strokeWeight(2);
@@ -973,26 +985,20 @@ void drawParts() {
   box(cmpWidth - padding * 2, cmpHeight - padding * 2, 30);
   translate(0, 30, 16);
   stroke(0);
-  fill(255 - (cmpCon[3] & unbinary("10000000")) * 255, 255 - (cmpCon[3] & unbinary("10000000")) * 255, 255);
-  ellipse(-105, 0, 20, 20);
-  fill(255 - (cmpCon[3] & unbinary("01000000")) * 255, 255 - (cmpCon[3] & unbinary("01000000")) * 255, 255);
-  ellipse(-75, 0, 20, 20);
-  fill(255 - (cmpCon[3] & unbinary("00100000")) * 255, 255 - (cmpCon[3] & unbinary("00100000")) * 255, 255);
-  ellipse(-45, 0, 20, 20);
-  fill(255 - (cmpCon[3] & unbinary("00010000")) * 255, 255 - (cmpCon[3] & unbinary("00010000")) * 255, 255);
-  ellipse(-15, 0, 20, 20);
   fill(255 - (cmpCon[3] & unbinary("00001000")) * 255, 255 - (cmpCon[3] & unbinary("00001000")) * 255, 255);
-  ellipse(15, 0, 20, 20);
+  ellipse(-45, 0, 20, 20);
   fill(255 - (cmpCon[3] & unbinary("00000100")) * 255, 255 - (cmpCon[3] & unbinary("00000100")) * 255, 255);
-  ellipse(45, 0, 20, 20);
+  ellipse(-15, 0, 20, 20);
   fill(255 - (cmpCon[3] & unbinary("00000010")) * 255, 255 - (cmpCon[3] & unbinary("00000010")) * 255, 255);
-  ellipse(75, 0, 20, 20);
+  ellipse(15, 0, 20, 20);
   fill(255 - (cmpCon[3] & unbinary("00000001")) * 255, 255 - (cmpCon[3] & unbinary("00000001")) * 255, 255);
-  ellipse(105, 0, 20, 20);
+  ellipse(45, 0, 20, 20);
   translate(0, -30, -16);
   translate(cmpWidth / -2, -cmpHeight * 3 + cmpHeight / -2, -16);
   fill(255);
   text("Program Counter", cmpWidth / 2, cmpHeight * 3 + cmpHeight / 2 - 30, 32);
+  
+  // Display
 
   fill(127);
   translate(cmpWidth * 2 + busWidth + cmpWidth / 2 + 50, cmpHeight, 16);
@@ -1095,22 +1101,14 @@ void drawParts() {
   box(cmpWidth - padding * 2, cmpHeight - padding * 2, 30);
   translate(0, 30, 16);
   stroke(0);
-  fill(255 - (cmpCon[6] & unbinary("10000000")) * 255, 255 - (cmpCon[6] & unbinary("10000000")) * 255, 255);
-  ellipse(-105, 0, 20, 20);
-  fill(255 - (cmpCon[6] & unbinary("01000000")) * 255, 255 - (cmpCon[6] & unbinary("01000000")) * 255, 255);
-  ellipse(-75, 0, 20, 20);
-  fill(255 - (cmpCon[6] & unbinary("00100000")) * 255, 255 - (cmpCon[6] & unbinary("00100000")) * 255, 255);
-  ellipse(-45, 0, 20, 20);
-  fill(255 - (cmpCon[6] & unbinary("00010000")) * 255, 255 - (cmpCon[6] & unbinary("00010000")) * 255, 255);
-  ellipse(-15, 0, 20, 20);
   fill(255 - (cmpCon[6] & unbinary("00001000")) * 255, 255 - (cmpCon[6] & unbinary("00001000")) * 255, 255);
-  ellipse(15, 0, 20, 20);
+  ellipse(-45, 0, 20, 20);
   fill(255 - (cmpCon[6] & unbinary("00000100")) * 255, 255 - (cmpCon[6] & unbinary("00000100")) * 255, 255);
-  ellipse(45, 0, 20, 20);
+  ellipse(-15, 0, 20, 20);
   fill(255 - (cmpCon[6] & unbinary("00000010")) * 255, 255 - (cmpCon[6] & unbinary("00000010")) * 255, 255);
-  ellipse(75, 0, 20, 20);
+  ellipse(15, 0, 20, 20);
   fill(255 - (cmpCon[6] & unbinary("00000001")) * 255, 255 - (cmpCon[6] & unbinary("00000001")) * 255, 255);
-  ellipse(105, 0, 20, 20);
+  ellipse(45, 0, 20, 20);
   translate(0, -30, -16);
   translate(-cmpWidth - busWidth - cmpWidth / 2, -cmpHeight * 2 + cmpHeight / -2, -16);
   fill(255);
@@ -1125,28 +1123,22 @@ void drawParts() {
   box(cmpWidth - padding * 2, cmpHeight - padding * 2, 30);
   translate(0, 30, 16);
   stroke(0);
-  fill(255 - (cmpCon[7] & unbinary("10000000")) * 255, 255 - (cmpCon[7] & unbinary("10000000")) * 255, 255);
-  ellipse(-105, 0, 20, 20);
-  fill(255 - (cmpCon[7] & unbinary("01000000")) * 255, 255 - (cmpCon[7] & unbinary("01000000")) * 255, 255);
-  ellipse(-75, 0, 20, 20);
-  fill(255 - (cmpCon[7] & unbinary("00100000")) * 255, 255 - (cmpCon[7] & unbinary("00100000")) * 255, 255);
-  ellipse(-45, 0, 20, 20);
-  fill(255 - (cmpCon[7] & unbinary("00010000")) * 255, 255 - (cmpCon[7] & unbinary("00010000")) * 255, 255);
-  ellipse(-15, 0, 20, 20);
   fill(255 - (cmpCon[7] & unbinary("00001000")) * 255, 255 - (cmpCon[7] & unbinary("00001000")) * 255, 255);
-  ellipse(15, 0, 20, 20);
+  ellipse(-45, 0, 20, 20);
   fill(255 - (cmpCon[7] & unbinary("00000100")) * 255, 255 - (cmpCon[7] & unbinary("00000100")) * 255, 255);
-  ellipse(45, 0, 20, 20);
+  ellipse(-15, 0, 20, 20);
   fill(255 - (cmpCon[7] & unbinary("00000010")) * 255, 255 - (cmpCon[7] & unbinary("00000010")) * 255, 255);
-  ellipse(75, 0, 20, 20);
+  ellipse(15, 0, 20, 20);
   fill(255 - (cmpCon[7] & unbinary("00000001")) * 255, 255 - (cmpCon[7] & unbinary("00000001")) * 255, 255);
-  ellipse(105, 0, 20, 20);
+  ellipse(45, 0, 20, 20);
   translate(0, -30, -16);
   translate(-cmpWidth - busWidth - cmpWidth / 2, -cmpHeight * 3 + cmpHeight / -2, -16);
   fill(255);
   textSize(24);
   text("Memory Address Register", cmpWidth + busWidth + cmpWidth / 2, cmpHeight * 3 + cmpHeight / 2 - 30, 32);
   textSize(32);
+  
+  // RAM
 
   fill(127);
   translate(cmpWidth * 2 + busWidth + cmpWidth / 2 + 50, cmpHeight * 2 + (height - cmpHeight * 2) / 2, 16);
@@ -1187,8 +1179,10 @@ void drawParts() {
   translate(-cmpWidth * 2 - busWidth - cmpWidth / 2 - 50, -cmpHeight * 2 + (height - cmpHeight * 2) / -2, -16);
   fill(255);
   textSize(24);
-  text("Random Access Memory", cmpWidth * 2 + busWidth + cmpWidth / 2 + 50, cmpHeight * 2 + cmpHeight / 2 - 30, 32);
+  text("Random-Access Memory", cmpWidth * 2 + busWidth + cmpWidth / 2 + 50, cmpHeight * 2 + cmpHeight / 2 - 30, 32);
   textSize(32);
+  
+  // CU
 
   fill(85);
   translate(cmpWidth + busWidth / 2, (cmpHeight * 4 + padding + 50) + ((height + 25) - (cmpHeight * 4 + padding + 50)) / 2, 16);
@@ -1218,6 +1212,8 @@ void drawParts() {
   text(getActionStr(), 100, 12);
   translate(cmpWidth / 2 + busWidth / 4 - padding / 2, 0, -16);
   translate(-cmpWidth - busWidth / 2, -(cmpHeight * 4 + padding + 50) - ((height + 25) - (cmpHeight * 4 + padding + 50)) / 2, -16);
+  
+  // The "data carrier"
 
   if (mv) {
     fill(127, 127, 255);
@@ -1232,22 +1228,24 @@ void drawParts() {
     } else {
       data = cmpCon[src];
     }
-    fill(255 - (data & unbinary("10000000")) * 255, 255 - (data & unbinary("10000000"))* 255, 255);
-    ellipse(-70, 0, 15, 15);
-    fill(255 - (data & unbinary("01000000")) * 255, 255 - (data & unbinary("01000000")) * 255, 255);
-    ellipse(-50, 0, 15, 15);
-    fill(255 - (data & unbinary("00100000")) * 255, 255 - (data & unbinary("00100000")) * 255, 255);
-    ellipse(-30, 0, 15, 15);
-    fill(255 - (data & unbinary("00010000")) * 255, 255 - (data & unbinary("00010000")) * 255, 255);
-    ellipse(-10, 0, 15, 15);
+    if (!fbit) {
+      fill(255 - (data & unbinary("10000000")) * 255, 255 - (data & unbinary("10000000"))* 255, 255);
+      ellipse(-70, 0, 15, 15);
+      fill(255 - (data & unbinary("01000000")) * 255, 255 - (data & unbinary("01000000")) * 255, 255);
+      ellipse(-50, 0, 15, 15);
+      fill(255 - (data & unbinary("00100000")) * 255, 255 - (data & unbinary("00100000")) * 255, 255);
+      ellipse(-30, 0, 15, 15);
+      fill(255 - (data & unbinary("00010000")) * 255, 255 - (data & unbinary("00010000")) * 255, 255);
+      ellipse(-10, 0, 15, 15);
+    }
     fill(255 - (data & unbinary("00001000")) * 255, 255 - (data & unbinary("00001000")) * 255, 255);
-    ellipse(10, 0, 15, 15);
+    ellipse(10 - int(fbit) * 40, 0, 15, 15);
     fill(255 - (data & unbinary("00000100")) * 255, 255 - (data & unbinary("00000100")) * 255, 255);
-    ellipse(30, 0, 15, 15);
+    ellipse(30 - int(fbit) * 40, 0, 15, 15);
     fill(255 - (data & unbinary("00000010")) * 255, 255 - (data & unbinary("00000010")) * 255, 255);
-    ellipse(50, 0, 15, 15);
+    ellipse(50 - int(fbit) * 40, 0, 15, 15);
     fill(255 - (data & unbinary("00000001")) * 255, 255 - (data & unbinary("00000001")) * 255, 255);
-    ellipse(70, 0, 15, 15);
+    ellipse(70 - int(fbit) * 40, 0, 15, 15);
     translate(0, 0, -6);
 
     translate(-tx, -ty, -11);
