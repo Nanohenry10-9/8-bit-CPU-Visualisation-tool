@@ -37,7 +37,7 @@ Each row has three columns. The left-most one has the data in a simple on-off fo
 * Add B to A: add register A and B and store the result in A
 * Subtract B from A: subtract register B from A and store the result in A
 * Jump to [address] ([address in decimal]): go to [address] and continue execution from there
-* Jump on [flag] to [address] ([address in decimal]): go to [address] if [event] is set ([flag] is either zero or carry, more on those later)
+* Jump on [flag] to [address] ([address in decimal]): go to [address] if [flag] is set ([flag] is either zero or carry, more on those later)
 * Halt: stop execution
 * Load [register] from [address] ([address in decimal]): load a value from [address] into [register]
 * Store [register] to [address] ([address in decimal]): store [register]'s value into [address]
