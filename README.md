@@ -17,8 +17,10 @@ This manual will demonstrate how to set up, start and use the CPU-Visualization 
 
 ### Setting up
 
-**Note:** At this stage, this application is only available for the Windows operating system.
-To run the program, download the Windows executable file and the `data` directory from https://github.com/Nanohenry10-9/CPU-visualisation-tool, and place it anywhere on your computer. Make sure the folder of the executable also contains the `data` folder with all the required files (fonts, graphics etc.). After this, the executable file can be opened, and the application should start with the main view open.
+~~**Note:** At this stage, this application is only available for the Windows operating system.
+To run the program, download the Windows executable file and the `data` directory from https://github.com/Nanohenry10-9/CPU-visualisation-tool, and place it anywhere on your computer. Make sure the folder of the executable also contains the `data` folder with all the required files (fonts, graphics etc.). After this, the executable file can be opened, and the application should start with the main view open.~~
+
+To run the program, download the `.pde` file and the `data` directory and place them in the same folder. Then start the `.pde` file in the Processing IDE.
 
 ### Views
 
