@@ -13,12 +13,12 @@ At this moment, there is no standalone executable, so it has to be run from the 
 
 This manual will demonstrate how to set up, start and use the CPU-Visualization tool.
 
-1. Setting up
+
 
 **Note:** At this stage, this application is only available for the Windows operating system.
 To run the program, download the Windows executable file and the `data` directory from https://github.com/Nanohenry10-9/CPU-visualisation-tool, and place it anywhere on your computer. Make sure the folder of the executable also contains the `data` folder with all the required files (fonts, graphics etc.). After this, the executable file can be opened, and the application should start with the main view open.
 
-2. Views
+
 
 The user interface of the application is a three-dimensional cube, that can be spun by the user to navigate between the different views (or pages) of the application. The navigation can be done with the arrow keys, left arrow key to turn the left side towards the user, right key for the right side and so on.
 There are five views in the current version of the application. They are the following: the processor view (also known as the main view), the Random-Access Memory (RAM) contents view, the processor component explanation view, the configuration view and the general information view.
