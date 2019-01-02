@@ -5,7 +5,7 @@ To run this, you need to install [Processing 3](http://processing.org), make sur
 
 The GUI is a 3D cube, that can be turned with the arrow keys.
 
-## Windows executable
+## Executable file
 At this moment, there is no standalone executable, so it has to be run from the Processing IDE (which is compatible with most platforms though!)
 
 ## Manual
@@ -13,21 +13,21 @@ At this moment, there is no standalone executable, so it has to be run from the 
 
 This manual will demonstrate how to set up, start and use the CPU-Visualization tool.
 
-1. Setting up
+### Setting up
 
 **Note:** At this stage, this application is only available for the Windows operating system.
 To run the program, download the Windows executable file and the `data` directory from https://github.com/Nanohenry10-9/CPU-visualisation-tool, and place it anywhere on your computer. Make sure the folder of the executable also contains the `data` folder with all the required files (fonts, graphics etc.). After this, the executable file can be opened, and the application should start with the main view open.
 
-2. Views
+### Views
 
 The user interface of the application is a three-dimensional cube, that can be spun by the user to navigate between the different views (or pages) of the application. The navigation can be done with the arrow keys, left arrow key to turn the left side towards the user, right key for the right side and so on.
 There are five views in the current version of the application. They are the following: the processor view (also known as the main view), the Random-Access Memory (RAM) contents view, the processor component explanation view, the configuration view and the general information view.
 
-2.1. The processor view
+#### The processor view
 
 This view, also know as the main view, contain the processor itself including all its components and peripherals, such as the Random-Access Memory and the display. In this view, most of the interesting action is happening. The processor covers most of the view and is in the grey rectangle. The display is in the upper-right corner and displays whatever is in the output register of the processor (more on that later). Finally, the Random-Access Memory is on the lower-right, and is read and written by the processor. It also displays the contents of the 16-byte Random-Access Memory, in binary, one byte per row.
 
-2.2. The Random-Access Memory contents view
+#### The Random-Access Memory contents view
 
 This view shows the Random-Access Memory's contents and explains what each byte means. There are 16 bytes of memory, which is not a lot, but enough to make a functional program to compute things like the first 14 Fibonacci numbers. The program and all data must fit in those 16 bytes, so this makes programming for the processor code golfing in a way (https://en.wikipedia.org/wiki/Code_golf). 
 Each row has three columns. The left-most one has the data in a simple on-off format, representing binary (white means 0, blue means 1). In column in the middle the data is in regular binary, in ones and zeros. In the right-most column, the meaning of the data is explained. It is either an instruction or a number, which will be indicated by the text in the column, either "Value [number]" (e.g. "Value 128") or explanation of the instruction (e.g. "Load A from 1101 (13)"). The different explanations are listed below:
@@ -42,11 +42,11 @@ Each row has three columns. The left-most one has the data in a simple on-off fo
 * Store [register] to [address] ([address in decimal]): store [register]'s value into [address]
 * Output A: display the value in the accumulator on the display
 
-2.3. The processor component explanation view
+#### The processor component explanation view
 
 This view simply contains explanations for all the components of the processor, in two columns. The left column contains the name of the part and the right one its task in the processor.
 
-2.4. The configuration view
+#### The configuration view
 
 In this view, the user may configure the different properties of the processor, such as the speed of execution or the program being executed. All the settings can be adjusted with different keys on the keyboard, indicated by the character(s) in the square brackets on the left. The adjustable settings in this version are: unsigned/signed mode, the executed program and the clock frequency (the execution speed). The processor's state can also be reset from this view.
 
