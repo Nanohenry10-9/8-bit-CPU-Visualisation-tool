@@ -8,9 +8,9 @@ int tx, ty, ttx, tty; // "Data carrier" location and target
 boolean mv; // "Data carrier" is moving
 int src = 9, des = 9; // Source and destination registers
 boolean fbit; // 4-bit "data carrier" mode
-boolean hideC = false; // "Data carrier" hidden
 
 PFont font, segment; // Fonts for general text and display
+PImage twitter; // Twitter-handle :)
 
 float speed = 0.5; // Clock frequency
 String speedStr = "0.5Hz"; // Clock frequency display string
@@ -25,15 +25,16 @@ float zoom = 2000; // Zoom (default 2000)
 boolean rotl, rotr; // Rotation towards left/right
 int rott; // Target angle
 
-boolean rotu, urotd; // Rotation happening upwards/rotation done
+int rotu;// Rotation happening upwards
+boolean urotd = true; // Rotation done
 
 String programStrs[] = { // The program titles
-  "none", 
-  "counter", 
-  "fibonacci"
+  "None", 
+  "Counter", 
+  "Fibonacci"
 };
 
-String umodeStr = "signed"; // The unsigned/signed display mode setting (string)
+String umodeStr = "Signed"; // The unsigned/signed display mode setting (string)
 int program; // The selected program
 boolean umode; // The unsigned/signed display mode setting (boolean)
 boolean pressed; // A key is pressed
@@ -52,10 +53,11 @@ int preMov; // Animation stuffs
 
 int bgOp = 255; // Background parts opacity
 boolean hbg = false; // Hide background when in processor view
-String hbgStr = "disabled"; // Display string for above option
+String hbgStr = "Show"; // Display string for above option
 
 int reCursorX, reCursorY;
 
+boolean ctrl = false;
 boolean stop; // Stopped
 
 byte cmpCon[] = { // Component data in order
@@ -230,6 +232,13 @@ void setProgram() { // Switch program
   }
 }
 
+void resetRegisters() { // Reset the registers to 0
+  for (int i = 0; i < 8; i++) {
+    cmpCon[i] = 0;
+  }
+  instPhase = 0;
+}
+
 String getActionStr() { // Get current CU information display text
   if (stop) {
     return "Machine halted, please reset";
@@ -260,14 +269,36 @@ void mouseWheel(MouseEvent e) { // Keep track of scrolling (for zoom)
   zoom = constrain(zoom, 1000, 3000);
 }
 
+boolean keys[] = new boolean[128];
+final int PLUS = 45;
+final int MINUS = 47;
+
+void keyPressed() {
+  if (keyCode > 127) {
+    return;
+  }
+  keys[keyCode] = true;
+}
+
+void keyReleased() {
+  if (keyCode > 127) {
+    return;
+  }
+  keys[keyCode] = false;
+}
+
 void setup() {
-  fullScreen(P3D);
-  //size(1920, 1080, P3D);
   font = loadFont("Consolas-Bold-32.vlw");
   segment = createFont("7-segment.ttf", 100);
+  twitter = loadImage("twitter.png");
   textFont(font);
   textAlign(LEFT);
   noSmooth();
+  for (int i = 0; i < 128; i++) {
+    keys[i] = false;
+  }
+  fullScreen(P3D);
+  //size(1920, 1080, P3D);
 }
 
 void draw() {
@@ -287,6 +318,7 @@ void draw() {
   text("Processor Architecture\n(Von Neumann)", 0, cmpWidth * -1.5 + 400, 32);
   textSize(32);
   translate(0, 0, 32);
+  textAlign(LEFT);
   text("The Von Neumann architecture means that the processor and all of it's components have access to the same Random-Accesss Memory (also called the same address space), unlike for example the Harvard architecture, which is more complicated. However, the Von Neumann architecture is still widely used due to its simplicity.", -400, 0, 800, 400);
   translate(0, 0, -32);
   rotateZ(radians(-rot));
@@ -296,6 +328,20 @@ void draw() {
   fill(0, bgOp);
   translate(0, 0, height / 2 + 116);
   box(cmpWidth * 3, cmpWidth * 3, 15);
+  rotateZ(radians(-rot));
+  noStroke();
+  fill(255);
+  translate(0, 0, 8);
+  ellipse(0, 0, 500, 500);
+  beginShape(QUAD);
+  texture(twitter);
+  vertex(-185, -65, 1, 0, 0);
+  vertex(185, -65, 1, 330, 0);
+  vertex(185, 65, 1, 330, 110);
+  vertex(-185, 65, 1, 0, 110);
+  endShape(CLOSE);
+  translate(0, 0, -8);
+  rotateZ(radians(rot));
   translate(0, 0, -height / 2 - 116);
   rotateX(radians(90));
   rotateY(radians(-90));
@@ -308,10 +354,12 @@ void draw() {
   textSize(36);
   fill(255, bgOp);
   textAlign(LEFT);
-  text("[U] display mode: " + umodeStr + "\n[P] executed program: " + programStrs[program] + "\n[+/-] clock frequency: " + speedStr + "\n[H] hide sides in background: " + hbgStr + "\n[R] reset", -420, 0, 32);
+  text("[U]    Display mode:\n[P]    Executed program:\n[+/-]  Clock frequency:\n[H]    Sides in background:\n\n\n[R]    Reset (CTRL+R to reset RAM)", -420, -20, 32);
+  textAlign(LEFT);
+  text(umodeStr + "\n" + programStrs[program] + "\n" + speedStr + "\n" + hbgStr, 160, -20, 32);
   textAlign(CENTER);
   textSize(48);
-  text("Configuration", 0, -330, 32);
+  text("Configuration", 0, -170, 32);
   textSize(32);
   translate(0, 0, -height / 2 - 300);
   rotateY(radians(-90));
@@ -344,7 +392,7 @@ void draw() {
   box(cmpWidth * 3, cmpHeight * 4, 30);
   translate(0, 0, -16);
   translate(0, 30, 32);
-  stroke(0, bgOp);
+  noStroke();
   for (int i = 0; i < 16; i++) {
     fill(255, bgOp);
     textSize(28);
@@ -374,7 +422,7 @@ void draw() {
     textAlign(CENTER);
   }
   noFill();
-  stroke(255, 0, 0);
+  stroke(sin(frameCount / 10.0) * 50 + 205, 0, 0, bgOp);
   strokeWeight(5);
   ellipse((-140 + reCursorX * 40) - 300, reCursorY * 40 - 300, 30, 30);
   translate(0, -30, -32);
@@ -390,7 +438,7 @@ void draw() {
   updateMove();
   camera(osx, osy, zoom, osx, osy, 0, 0, 1, 0);
 
-  if (!stop && keyPressed && key == ' ' && speed == 0 && millis() - lastTick > 100 && !mv) {
+  if (!stop && keys[' '] && speed == 0 && millis() - lastTick > 100 && !mv) {
     lastTick = millis();
     update();
   }
@@ -414,23 +462,23 @@ void draw() {
     preMov += 3 * max(speed, 1);
     if (preMov > padding * 4) {
       switch (src) {
-        case 1:
-          if (ALUsub) {
-            cmpCon[1] = (byte)(cmpCon[0] - cmpCon[2]);
-          } else {
-            cmpCon[1] = (byte)(cmpCon[0] + cmpCon[2]);
-          }
-          ALUcd = ALUc;
-          ALUzd = ALUz;
-          break;
-        case 6:
-          cmpCon[6] = (byte)(cmpCon[5] & 0xF);
-          break;
+      case 1:
+        if (ALUsub) {
+          cmpCon[1] = (byte)(cmpCon[0] - cmpCon[2]);
+        } else {
+          cmpCon[1] = (byte)(cmpCon[0] + cmpCon[2]);
+        }
+        ALUcd = ALUc;
+        ALUzd = ALUz;
+        break;
+      case 6:
+        cmpCon[6] = (byte)(cmpCon[5] & 0xF);
+        break;
       }
       moveData(src, des);
     }
   }
-  
+
   if (PCincAnim != 0) {
     PCincAnim++;
     if (PCincAnim > 35) {
@@ -446,26 +494,26 @@ void draw() {
     bgOp += 10;
   }
 
-  if (((mousePressed && mouseX > width * (4.0 / 5.0)) || (keyPressed && keyCode == RIGHT)) && !rotl && !rotr) {
+  if (((mousePressed && mouseX > width * (4.0 / 5.0)) || keys[RIGHT]) && !rotl && !rotr) {
     rotl = true;
     rott = rot - 90;
     if (rott < 0) {
       rott += 360;
     }
   }
-  if (((mousePressed && mouseX < width * (1.0 / 5.0)) || (keyPressed && keyCode == LEFT)) && !rotr && !rotl) {
+  if (((mousePressed && mouseX < width * (1.0 / 5.0)) || keys[LEFT]) && !rotr && !rotl) {
     rotr = true;
     rott = rot + 90;
     if (rott > 360) {
       rott -= 360;
     }
   }
-  if (((mousePressed && mouseY < height * (1.0 / 5.0)) || (keyPressed && keyCode == UP)) && !rotu && urotd) {
-    rotu = true;
+  if (((mousePressed && mouseY < height * (1.0 / 5.0)) || keys[UP]) && rotu > -90 && urotd) {
+    rotu = urot - 90;
     urotd = false;
   }
-  if (((mousePressed && mouseY > height * (4.0 / 5.0)) || (keyPressed && keyCode == DOWN)) && rotu && urotd) {
-    rotu = false;
+  if (((mousePressed && mouseY > height * (4.0 / 5.0)) || keys[DOWN]) && rotu < 90 && urotd) {
+    rotu = urot + 90;
     urotd = false;
   }
   if (rot != rott) {
@@ -487,63 +535,60 @@ void draw() {
   }
 
   if (!urotd) {
-    if (rotu) {
-      urot -= max(abs(urot + 90) / 8, 1);
-      if (urot < -90) {
-        urot = -90;
-        urotd = true;
-      }
-    } else {
-      urot += max(abs(urot) / 8, 1);
-      if (urot > 0) {
-        urot = 0;
-        urotd = true;
-      }
+    float d = (rotu - urot) / 8.0;
+    if (d >= 0 && d < 1) {
+      d = 1;
+    } else if (d <= 0 && d > -1) {
+      d = -1;
+    }
+    urot += d;
+    if (abs(urot - rotu) < EPSILON) {
+      urotd = true;
     }
   }
-  
-  if (rot == 270 && urot == 0 && keyPressed && key == 'd') {
+
+  if (rot == 270 && urot == 0 && keys['D']) {
     if (!pressed) {
       reCursorX = (reCursorX + 1) & unbinary("00000111");
     }
     pressed = true;
-  } else if (rot == 270 && urot == 0 && keyPressed && key == 'a') {
+  } else if (rot == 270 && urot == 0 && keys['A']) {
     if (!pressed) {
       reCursorX = (reCursorX - 1) & unbinary("00000111");
     }
     pressed = true;
-  } else if (rot == 270 && urot == 0 && keyPressed && key == 'w') {
+  } else if (rot == 270 && urot == 0 && keys['W']) {
     if (!pressed) {
       reCursorY = (reCursorY - 1) & unbinary("00001111");
     }
     pressed = true;
-  } else if (rot == 270 && urot == 0 && keyPressed && key == 's') {
+  } else if (rot == 270 && urot == 0 && keys['S']) {
     if (!pressed) {
       reCursorY = (reCursorY + 1) & unbinary("00001111");
     }
     pressed = true;
-  } else if (rot == 270 && urot == 0 && keyPressed && key == ' ') {
+  } else if (rot == 270 && urot == 0 && keys[' ']) {
     if (!pressed) {
       ramCon[reCursorY] ^= (1 << (7 - reCursorX));
     }
     pressed = true;
-  } else if (rot == 90 && urot == 0 && keyPressed && key == 'u') {
+  } else if (rot == 90 && urot == 0 && keys['U']) {
     if (!pressed) {
       if (umode) {
-        umodeStr = "signed";
+        umodeStr = "Signed";
       } else {
-        umodeStr = "unsigned";
+        umodeStr = "Unsigned";
       }
       umode = !umode;
     }
     pressed = true;
-  } else if (rot == 90 && urot == 0 && keyPressed && key == 'p') {
+  } else if (rot == 90 && urot == 0 && keys['P']) {
     if (!pressed) {
       program = (program + 1) % programs.length;
       setProgram();
     }
     pressed = true;
-  } else if (rot == 90 && urot == 0 && keyPressed && key == '+') {
+  } else if (rot == 90 && urot == 0 && keys[PLUS]) {
     if (!pressed && speed < 100) {
       if (speed >= 10) {
         speed += 5;
@@ -559,11 +604,11 @@ void draw() {
           speedStr = str(speed) + "Hz";
         }
       } else {
-        speedStr = "Manual stepping";
+        speedStr = "Manual";
       }
     }
     pressed = true;
-  } else if (rot == 90 && urot == 0 && keyPressed && key == '-') {
+  } else if (rot == 90 && urot == 0 && keys[MINUS]) {
     if (!pressed && speed > 0) {
       if (speed > 10) {
         speed -= 5;
@@ -579,26 +624,29 @@ void draw() {
           speedStr = str(speed) + "Hz";
         }
       } else {
-        speedStr = "Manual stepping";
+        speedStr = "Manual";
       }
     }
     pressed = true;
-  } else if (rot == 90 && urot == 0 && keyPressed && key == 'h') {
+  } else if (rot == 90 && urot == 0 && keys['H']) {
     if (!pressed) {
       hbg = !hbg;
       if (hbg) {
-        hbgStr = "enabled";
+        hbgStr = "Hide";
       } else {
-        hbgStr = "disabled";
+        hbgStr = "Show";
       }
     }
     pressed = true;
-  } else if (rot == 90 && urot == 0 && keyPressed && key == 'r') {
+  } else if (rot == 90 && urot == 0 && keys['R']) {
     instPhase = 0;
     stop = false;
     ALUc = false;
     ALUz = false;
-    setProgram();
+    resetRegisters();
+    if (keys[CONTROL]) {
+      setProgram();
+    }
   } else {
     pressed = false;
   }
@@ -1266,7 +1314,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
     box(100, padding * 2, 20);
     translate(-cmpWidth - busWidth - cmpWidth / 2, -cmpHeight * 2 + padding * 2 - preMov, -15);
   }
-  
+
   if (mv && (src == 6 || des == 6) && speed <= 5) {
     fill(40);
   } else {
