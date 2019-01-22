@@ -293,6 +293,7 @@ void setup() {
   twitter = loadImage("twitter.png");
   textFont(font);
   textAlign(LEFT);
+  noCursor();
   noSmooth();
   for (int i = 0; i < 128; i++) {
     keys[i] = false;
@@ -319,7 +320,7 @@ void draw() {
   textSize(32);
   translate(0, 0, 32);
   textAlign(LEFT);
-  text("The Von Neumann architecture means that the processor and all of it's components have access to the same Random-Accesss Memory (also called the same address space), unlike for example the Harvard architecture, which is more complicated. However, the Von Neumann architecture is still widely used due to its simplicity.", -400, 0, 800, 400);
+  text("The Von Neumann architecture means that the processor and all of it's components have access to the same Random-Access Memory (also called the same address space), unlike for example the Harvard architecture, which is more complicated. However, the Von Neumann architecture is still widely used due to its simplicity.", -400, 0, 800, 400);
   translate(0, 0, -32);
   rotateZ(radians(-rot));
   translate(0, 0, -height / 2 - 100);
@@ -1369,7 +1370,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
   translate(0, 30, 16);
   for (int i = 0; i < 16; i++) {
     if (cmpCon[7] == i) {
-      stroke(127, 127, 255);
+      stroke(0, 0, 255);
       strokeWeight(5);
       noFill();
       rect(-120, i * 30 - 235, 240, 30);
