@@ -6,7 +6,7 @@ int busWidth = 300;
 
 int tx, ty, ttx, tty; // "Data carrier" location and target
 boolean mv; // "Data carrier" is moving
-int src = 9, des = 9; // Source and destination registers
+int src = 9, des = 9; // Source and destination registers (values > 8 means not in use)
 boolean fbit; // 4-bit "data carrier" mode
 
 PFont font, segment; // Fonts for general text and display
@@ -320,7 +320,7 @@ void draw() {
   textSize(32);
   translate(0, 0, 32);
   textAlign(LEFT);
-  text("The Von Neumann architecture means that the processor and all of it's components have access to the same Random-Access Memory (also called the same address space), unlike for example the Harvard architecture, which is more complicated. However, the Von Neumann architecture is still widely used due to its simplicity.", -400, 0, 800, 400);
+  text("The Von Neumann architecture means that the processor and all of its components have access to the same Random-Access Memory (also called the same address space), unlike for example the Harvard architecture, which is more complicated. However, the Von Neumann architecture is still widely used due to its simplicity.", -400, 0, 800, 400);
   translate(0, 0, -32);
   rotateZ(radians(-rot));
   translate(0, 0, -height / 2 - 100);
