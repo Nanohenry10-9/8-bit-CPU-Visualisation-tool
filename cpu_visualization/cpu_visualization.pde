@@ -1,4 +1,4 @@
-int padding = 15; // Padding of the registers
+int padding = 15; // Padding of the CPU parts, 15 works best
 
 int cmpWidth = 400; // Layout
 int cmpHeight = 200;
@@ -7,7 +7,7 @@ int busWidth = 300;
 int tx, ty, ttx, tty; // "Data carrier" location and target
 boolean mv; // "Data carrier" is moving
 int src = 9, des = 9; // Source and destination registers (values > 8 means not in use)
-boolean fbit; // 4-bit "data carrier" mode
+boolean fourbit; // 4-bit "data carrier" mode
 
 PFont font, segment; // Fonts for general text and display
 PImage twitter; // Twitter-handle :)
@@ -17,16 +17,16 @@ String speedStr = "0.5Hz"; // Clock frequency display string
 
 //int cover; // CPU cover location
 
-int rot, urot; // Cube angles in x- and y-directions
+int angY, angX; // Cube angles in y- and x-directions (sideways and up/down)
 
 float osx, osy; // Camera location (offset) 
 float zoom = 2000; // Zoom (default 2000)
 
-boolean rotl, rotr; // Rotation towards left/right
-int rott; // Target angle
+boolean rotLeft, rotRight; // Rotation towards left/right
+int rotTarget; // Target angle
 
-int rotu;// Rotation happening upwards
-boolean urotd = true; // Rotation done
+int rotUpDown;// Target angle up/down
+boolean rotDone = true; // Up/down rotation done
 
 String programStrs[] = { // The program titles
   "None", 
@@ -34,9 +34,9 @@ String programStrs[] = { // The program titles
   "Fibonacci"
 };
 
-String umodeStr = "Signed"; // The unsigned/signed display mode setting (string)
+String uModeStr = "Signed"; // The unsigned/signed display mode setting (string)
 int program; // The selected program
-boolean umode; // The unsigned/signed display mode setting (boolean)
+boolean uMode; // The unsigned/signed display mode setting (boolean)
 boolean pressed; // A key is pressed
 
 long lastTick; // Last clock update in milliseconds since start of application
@@ -51,14 +51,13 @@ boolean ALUcd, ALUzd; // Displayed ALU flags (carry, zero)
 
 int preMov; // Animation stuffs
 
-int bgOp = 255; // Background parts opacity
-boolean hbg = false; // Hide background when in processor view
-String hbgStr = "Show"; // Display string for above option
+int bgOpacity = 255; // Background parts opacity
+boolean bgHidden = false; // Hide background when in processor view
+String bhHiddenStr = "Show"; // Display string for above option
 
-int reCursorX, reCursorY;
+int cursorX, cursorY; // RAM edit cursor position
 
-boolean ctrl = false;
-boolean stop; // Stopped
+boolean halted, reset; // halted (on HLT instruction), R pressed (machine reset)
 
 byte cmpCon[] = { // Component data in order
   (byte)unbinary("00000000"), 
@@ -90,16 +89,7 @@ byte ramCon[] = { // RAM data
   (byte)unbinary("00000000")
 };
 
-byte programs[][] = {{ // Changeable programs
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-
+byte programs[][] = {{ // Programs
     (byte)unbinary("00000000"), 
     (byte)unbinary("00000000"), 
     (byte)unbinary("00000000"), 
@@ -117,15 +107,6 @@ byte programs[][] = {{ // Changeable programs
     (byte)unbinary("00000000"), 
     (byte)unbinary("00000000")
   }, {
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-
     (byte)unbinary("10010100"), 
     (byte)unbinary("00010000"), 
     (byte)unbinary("10110000"), 
@@ -143,15 +124,6 @@ byte programs[][] = {{ // Changeable programs
     (byte)unbinary("00000000"), 
     (byte)unbinary("00000000")
   }, {
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-    (byte)unbinary("00000000"), 
-
     (byte)unbinary("01111100"), 
     (byte)unbinary("10110000"), 
     (byte)unbinary("01111101"), 
@@ -217,18 +189,15 @@ String getInst(byte b) { // Strings used for RAM data explanation
   case 10:
     return instructionStr[(b >> 4) & 0xF] + String.format("%4s", Integer.toBinaryString(b & 0xF)).replace(' ', '0') + " (" + str(b & 0xF) + ")";
   }
-  if (umode) {
+  if (uMode) {
     return "Value " + str(b & 0xFF);
   }
   return "Value " + str(b);
 }
 
 void setProgram() { // Switch program
-  for (int i = 0; i < 8; i++) {
-    cmpCon[i] = programs[program][i];
-  }
   for (int i = 0; i < 16; i++) {
-    ramCon[i] = programs[program][i + 8];
+    ramCon[i] = programs[program][i];
   }
 }
 
@@ -240,7 +209,7 @@ void resetRegisters() { // Reset the registers to 0
 }
 
 String getActionStr() { // Get current CU information display text
-  if (stop) {
+  if (halted) {
     return "Machine halted, please reset";
   }
   if (speed > 5) {
@@ -304,32 +273,35 @@ void setup() {
 
 void draw() {
   background(0);
-  rotateX(radians(urot));
-  rotateY(radians(rot));
+  // Apply rotations
+  rotateX(radians(angX));
+  rotateY(radians(angY));
+  // Top side
   rotateX(radians(90));
   translate(0, 0, height / 2 + 100);
-  stroke(127, bgOp);
-  fill(0, bgOp);
+  stroke(127, bgOpacity);
+  fill(0, bgOpacity);
   translate(0, 0, 16);
   box(cmpWidth * 3, cmpWidth * 3, 15);
   translate(0, 0, -16);
-  fill(255, bgOp);
+  fill(255, bgOpacity);
   textSize(48);
-  rotateZ(radians(rot));
+  rotateZ(radians(angY));
   text("Processor Architecture\n(Von Neumann)", 0, cmpWidth * -1.5 + 400, 32);
   textSize(32);
   translate(0, 0, 32);
   textAlign(LEFT);
   text("The Von Neumann architecture means that the processor and all of its components have access to the same Random-Access Memory (also called the same address space), unlike for example the Harvard architecture, which is more complicated. However, the Von Neumann architecture is still widely used due to its simplicity.", -400, 0, 800, 400);
   translate(0, 0, -32);
-  rotateZ(radians(-rot));
+  rotateZ(radians(-angY));
   translate(0, 0, -height / 2 - 100);
+  // Bottom side
   rotateX(radians(-180));
-  stroke(127, bgOp);
-  fill(0, bgOp);
+  stroke(127, bgOpacity);
+  fill(0, bgOpacity);
   translate(0, 0, height / 2 + 116);
   box(cmpWidth * 3, cmpWidth * 3, 15);
-  rotateZ(radians(-rot));
+  rotateZ(radians(-angY));
   noStroke();
   fill(255);
   translate(0, 0, 8);
@@ -342,36 +314,37 @@ void draw() {
   vertex(-185, 65, 1, 0, 110);
   endShape(CLOSE);
   translate(0, 0, -8);
-  rotateZ(radians(rot));
+  rotateZ(radians(angY));
   translate(0, 0, -height / 2 - 116);
   rotateX(radians(90));
+  // Left (configuration) view
   rotateY(radians(-90));
   translate(0, 0, height / 2 + 300);
-  stroke(127, bgOp);
-  fill(0, bgOp);
+  stroke(127, bgOpacity);
+  fill(0, bgOpacity);
   translate(0, 0, 16);
   box(cmpWidth * 3, cmpHeight * 4, 30);
   translate(0, 0, -16);
   textSize(36);
-  fill(255, bgOp);
+  fill(255, bgOpacity);
   textAlign(LEFT);
   text("[U]    Display mode:\n[P]    Executed program:\n[+/-]  Clock frequency:\n[H]    Sides in background:\n\n\n[R]    Reset (CTRL+R to reset RAM)", -420, -20, 32);
   textAlign(LEFT);
-  text(umodeStr + "\n" + programStrs[program] + "\n" + speedStr + "\n" + hbgStr, 160, -20, 32);
+  text(uModeStr + "\n" + programStrs[program] + "\n" + speedStr + "\n" + bhHiddenStr, 160, -20, 32);
   textAlign(CENTER);
   textSize(48);
   text("Configuration", 0, -170, 32);
   textSize(32);
   translate(0, 0, -height / 2 - 300);
+  // Behind (part explanation) view
   rotateY(radians(-90));
-
   translate(0, 0, height / 2 + 300);
-  stroke(127, bgOp);
-  fill(31, bgOp);
+  stroke(127, bgOpacity);
+  fill(31, bgOpacity);
   translate(0, 0, 16);
   box(cmpWidth * 3.5, cmpHeight * 5.5, 30);
   translate(0, 0, -16);
-  fill(255, bgOp);
+  fill(255, bgOpacity);
   textAlign(LEFT);
   textSize(48);
   text("Name", -cmpWidth * 1.75 + 100, -cmpHeight * 2.75 + 100, 32);
@@ -383,81 +356,70 @@ void draw() {
   text("Also known as the accumulator, stores\na temporary value\n\nStores another temporary value\n\n\nPerforms all computations and comparison\noperations, the two extra bits are flags\n\nStores current executed address\nof program\n\nThe value in this register will\nbe shown on the display\n\nStores the current instruction\nbeing executed\n\nContains the lower 4 bits of the\nInstruction Register, AKA the operand\n\nTells the RAM what address\nto read/write\n\nControls all the registers and what they do,\nand also shows the currently performed action\n(in red), the clock pulse and the instruction\nphase", -50, -350, 32);
   textAlign(CENTER);
   translate(0, 0, -height / 2 - 300);
+  // Right (RAM explanation) view
   rotateY(radians(-90));
-
   translate(0, 0, height / 2 + 300);
-
   translate(0, 0, 16);
-  stroke(127, bgOp);
-  fill(0, bgOp);
+  stroke(127, bgOpacity);
+  fill(0, bgOpacity);
   box(cmpWidth * 3, cmpHeight * 4, 30);
   translate(0, 0, -16);
   translate(0, 30, 32);
   noStroke();
   for (int i = 0; i < 16; i++) {
-    fill(255, bgOp);
+    fill(255, bgOpacity);
     textSize(28);
     textAlign(RIGHT);
     text(i, -140 - 340, i * 40 - 300 + 10);
     textAlign(CENTER);
-    fill(255 - (ramCon[i] & unbinary("10000000")) * 255, 255 - (ramCon[i] & unbinary("10000000")) * 255, 255, bgOp);
+    fill(255 - (ramCon[i] & unbinary("10000000")) * 255, 255 - (ramCon[i] & unbinary("10000000")) * 255, 255, bgOpacity);
     ellipse(-140 - 300, i * 40 - 300, 30, 30);
-    fill(255 - (ramCon[i] & unbinary("01000000")) * 255, 255 - (ramCon[i] & unbinary("01000000")) * 255, 255, bgOp);
+    fill(255 - (ramCon[i] & unbinary("01000000")) * 255, 255 - (ramCon[i] & unbinary("01000000")) * 255, 255, bgOpacity);
     ellipse(-100 - 300, i * 40 - 300, 30, 30);
-    fill(255 - (ramCon[i] & unbinary("00100000")) * 255, 255 - (ramCon[i] & unbinary("00100000")) * 255, 255, bgOp);
+    fill(255 - (ramCon[i] & unbinary("00100000")) * 255, 255 - (ramCon[i] & unbinary("00100000")) * 255, 255, bgOpacity);
     ellipse(-60 - 300, i * 40 - 300, 30, 30);
-    fill(255 - (ramCon[i] & unbinary("00010000")) * 255, 255 - (ramCon[i] & unbinary("00010000")) * 255, 255, bgOp);
+    fill(255 - (ramCon[i] & unbinary("00010000")) * 255, 255 - (ramCon[i] & unbinary("00010000")) * 255, 255, bgOpacity);
     ellipse(-20 - 300, i * 40 - 300, 30, 30);
-    fill(255 - (ramCon[i] & unbinary("00001000")) * 255, 255 - (ramCon[i] & unbinary("00001000")) * 255, 255, bgOp);
+    fill(255 - (ramCon[i] & unbinary("00001000")) * 255, 255 - (ramCon[i] & unbinary("00001000")) * 255, 255, bgOpacity);
     ellipse(20 - 300, i * 40 - 300, 30, 30);
-    fill(255 - (ramCon[i] & unbinary("00000100")) * 255, 255 - (ramCon[i] & unbinary("00000100")) * 255, 255, bgOp);
+    fill(255 - (ramCon[i] & unbinary("00000100")) * 255, 255 - (ramCon[i] & unbinary("00000100")) * 255, 255, bgOpacity);
     ellipse(60 - 300, i * 40 - 300, 30, 30);
-    fill(255 - (ramCon[i] & unbinary("00000010")) * 255, 255 - (ramCon[i] & unbinary("00000010")) * 255, 255, bgOp);
+    fill(255 - (ramCon[i] & unbinary("00000010")) * 255, 255 - (ramCon[i] & unbinary("00000010")) * 255, 255, bgOpacity);
     ellipse(100 - 300, i * 40 - 300, 30, 30);
-    fill(255 - (ramCon[i] & unbinary("00000001")) * 255, 255 - (ramCon[i] & unbinary("00000001")) * 255, 255, bgOp);
+    fill(255 - (ramCon[i] & unbinary("00000001")) * 255, 255 - (ramCon[i] & unbinary("00000001")) * 255, 255, bgOpacity);
     ellipse(140 - 300, i * 40 - 300, 30, 30);
-    fill(255, bgOp);
+    fill(255, bgOpacity);
     text(String.format("%8s", Integer.toBinaryString(ramCon[i] & 0xFF)).replace(' ', '0'), 0, i * 40 - 290);
     textAlign(LEFT);
     text(getInst(ramCon[i]), -140 + 300, i * 40 - 290);
     textAlign(CENTER);
   }
   noFill();
-  stroke(sin(frameCount / 10.0) * 50 + 205, 0, 0, bgOp);
+  stroke(sin(frameCount / 10.0) * 50 + 205, 0, 0, bgOpacity);
   strokeWeight(5);
-  ellipse((-140 + reCursorX * 40) - 300, reCursorY * 40 - 300, 30, 30);
+  ellipse((-140 + cursorX * 40) - 300, cursorY * 40 - 300, 30, 30);
   translate(0, -30, -32);
-  fill(255, bgOp);
+  fill(255, bgOpacity);
   textSize(48);
   text("Random-Access Memory contents", 0, -330, 32);
   textSize(32);
-
   translate(0, 0, -height / 2 - 300);
+  // Front (main) view
   rotateY(radians(-90));
   translate(-cmpWidth * 1.5 - busWidth / 2, -height / 2, height / 2 + 300);
-  drawParts();
-  updateMove();
-  camera(osx, osy, zoom, osx, osy, 0, 0, 1, 0);
+  drawParts(); // Draw CPU inside function
+  updateMove(); // Update "data carrier"
+  camera(osx, osy, zoom, osx, osy, 0, 0, 1, 0); // Make sure the view is centered
+  
+  if (reset && halted && angY % 360 == 0 && angX == 0) {
+    reset = false;
+    halted = false;
+  }
 
-  if (!stop && keys[' '] && speed == 0 && millis() - lastTick > 100 && !mv) {
+  if ((!halted && keys[' '] && speed == 0 && millis() - lastTick > 100 && !mv) || (!halted && speed != 0 && millis() - lastTick >= 1000 / speed)) {
     lastTick = millis();
     update();
   }
-  if (!stop && speed != 0 && millis() - lastTick >= 1000 / speed) {
-    lastTick = millis();
-    update();
-  }
-
-  /*if (mousePressed) {  
-   osx += pmouseX - mouseX;
-   osy += pmouseY - mouseY;
-   }
-   
-   if (keyPressed && key == 'r') {
-   osx = 0;
-   osy = 0;
-   zoom = 2000;
-   }*/
 
   if (preMov != 0) {
     preMov += 3 * max(speed, 1);
@@ -487,109 +449,109 @@ void draw() {
     }
   }
 
-  if (rot % 360 == 0 && urot == 0 && hbg) {
-    if (bgOp > 0) {
-      bgOp -= 10;
+  if (angY % 360 == 0 && angX == 0 && bgHidden) {
+    if (bgOpacity > 0) {
+      bgOpacity -= 10;
     }
-  } else if (bgOp < 255) {
-    bgOp += 10;
+  } else if (bgOpacity < 255) {
+    bgOpacity += 10;
   }
 
-  if (((mousePressed && mouseX > width * (4.0 / 5.0)) || keys[RIGHT]) && !rotl && !rotr) {
-    rotl = true;
-    rott = rot - 90;
-    if (rott < 0) {
-      rott += 360;
+  if (((mousePressed && mouseX > width * (4.0 / 5.0)) || keys[RIGHT]) && !rotLeft && !rotRight) {
+    rotLeft = true;
+    rotTarget = angY - 90;
+    if (rotTarget < 0) {
+      rotTarget += 360;
     }
   }
-  if (((mousePressed && mouseX < width * (1.0 / 5.0)) || keys[LEFT]) && !rotr && !rotl) {
-    rotr = true;
-    rott = rot + 90;
-    if (rott > 360) {
-      rott -= 360;
+  if (((mousePressed && mouseX < width * (1.0 / 5.0)) || keys[LEFT]) && !rotRight && !rotLeft) {
+    rotRight = true;
+    rotTarget = angY + 90;
+    if (rotTarget > 360) {
+      rotTarget -= 360;
     }
   }
-  if (((mousePressed && mouseY < height * (1.0 / 5.0)) || keys[UP]) && rotu > -90 && urotd) {
-    rotu = urot - 90;
-    urotd = false;
+  if (((mousePressed && mouseY < height * (1.0 / 5.0)) || keys[UP]) && rotUpDown > -90 && rotDone) {
+    rotUpDown = angX - 90;
+    rotDone = false;
   }
-  if (((mousePressed && mouseY > height * (4.0 / 5.0)) || keys[DOWN]) && rotu < 90 && urotd) {
-    rotu = urot + 90;
-    urotd = false;
+  if (((mousePressed && mouseY > height * (4.0 / 5.0)) || keys[DOWN]) && rotUpDown < 90 && rotDone) {
+    rotUpDown = angX + 90;
+    rotDone = false;
   }
-  if (rot != rott) {
-    if (rotl) {
-      rot -= max(abs(rot - rott) / 8, 1);
-      if (rot < 0) {
-        rot += 360;
+  if (angY != rotTarget) {
+    if (rotLeft) {
+      angY -= max(abs(angY - rotTarget) / 8, 1);
+      if (angY < 0) {
+        angY += 360;
       }
     }
-    if (rotr) {
-      rot += max(abs(rot - rott) / 8, 1);
-      if (rot > 360) {
-        rot -= 360;
+    if (rotRight) {
+      angY += max(abs(angY - rotTarget) / 8, 1);
+      if (angY > 360) {
+        angY -= 360;
       }
     }
   } else {
-    rotl = false;
-    rotr = false;
+    rotLeft = false;
+    rotRight = false;
   }
 
-  if (!urotd) {
-    float d = (rotu - urot) / 8.0;
+  if (!rotDone) {
+    float d = (rotUpDown - angX) / 8.0;
     if (d >= 0 && d < 1) {
       d = 1;
     } else if (d <= 0 && d > -1) {
       d = -1;
     }
-    urot += d;
-    if (abs(urot - rotu) < EPSILON) {
-      urotd = true;
+    angX += d;
+    if (abs(angX - rotUpDown) < EPSILON) {
+      rotDone = true;
     }
   }
 
-  if (rot == 270 && urot == 0 && keys['D']) {
+  if (angY == 270 && angX == 0 && keys['D']) {
     if (!pressed) {
-      reCursorX = (reCursorX + 1) & unbinary("00000111");
+      cursorX = (cursorX + 1) & unbinary("00000111");
     }
     pressed = true;
-  } else if (rot == 270 && urot == 0 && keys['A']) {
+  } else if (angY == 270 && angX == 0 && keys['A']) {
     if (!pressed) {
-      reCursorX = (reCursorX - 1) & unbinary("00000111");
+      cursorX = (cursorX - 1) & unbinary("00000111");
     }
     pressed = true;
-  } else if (rot == 270 && urot == 0 && keys['W']) {
+  } else if (angY == 270 && angX == 0 && keys['W']) {
     if (!pressed) {
-      reCursorY = (reCursorY - 1) & unbinary("00001111");
+      cursorY = (cursorY - 1) & unbinary("00001111");
     }
     pressed = true;
-  } else if (rot == 270 && urot == 0 && keys['S']) {
+  } else if (angY == 270 && angX == 0 && keys['S']) {
     if (!pressed) {
-      reCursorY = (reCursorY + 1) & unbinary("00001111");
+      cursorY = (cursorY + 1) & unbinary("00001111");
     }
     pressed = true;
-  } else if (rot == 270 && urot == 0 && keys[' ']) {
+  } else if (angY == 270 && angX == 0 && keys[' ']) {
     if (!pressed) {
-      ramCon[reCursorY] ^= (1 << (7 - reCursorX));
+      ramCon[cursorY] ^= (1 << (7 - cursorX));
     }
     pressed = true;
-  } else if (rot == 90 && urot == 0 && keys['U']) {
+  } else if (angY == 90 && angX == 0 && keys['U']) {
     if (!pressed) {
-      if (umode) {
-        umodeStr = "Signed";
+      if (uMode) {
+        uModeStr = "Signed";
       } else {
-        umodeStr = "Unsigned";
+        uModeStr = "Unsigned";
       }
-      umode = !umode;
+      uMode = !uMode;
     }
     pressed = true;
-  } else if (rot == 90 && urot == 0 && keys['P']) {
+  } else if (angY == 90 && angX == 0 && keys['P']) {
     if (!pressed) {
       program = (program + 1) % programs.length;
       setProgram();
     }
     pressed = true;
-  } else if (rot == 90 && urot == 0 && keys[PLUS]) {
+  } else if (angY == 90 && angX == 0 && keys[PLUS]) {
     if (!pressed && speed < 100) {
       if (speed >= 10) {
         speed += 5;
@@ -609,7 +571,7 @@ void draw() {
       }
     }
     pressed = true;
-  } else if (rot == 90 && urot == 0 && keys[MINUS]) {
+  } else if (angY == 90 && angX == 0 && keys[MINUS]) {
     if (!pressed && speed > 0) {
       if (speed > 10) {
         speed -= 5;
@@ -629,25 +591,26 @@ void draw() {
       }
     }
     pressed = true;
-  } else if (rot == 90 && urot == 0 && keys['H']) {
+  } else if (angY == 90 && angX == 0 && keys['H']) {
     if (!pressed) {
-      hbg = !hbg;
-      if (hbg) {
-        hbgStr = "Hide";
+      bgHidden = !bgHidden;
+      if (bgHidden) {
+        bhHiddenStr = "Hide";
       } else {
-        hbgStr = "Show";
+        bhHiddenStr = "Show";
       }
     }
     pressed = true;
-  } else if (rot == 90 && urot == 0 && keys['R']) {
+  } else if (angY == 90 && angX == 0 && keys['R']) {
     instPhase = 0;
-    stop = false;
     ALUc = false;
     ALUz = false;
     resetRegisters();
     if (keys[CONTROL]) {
       setProgram();
     }
+    halted = true;
+    reset = true;
   } else {
     pressed = false;
   }
@@ -698,7 +661,7 @@ void update() {
       moveData(6, 3);
     }
     if (instPhase == 4 && (cmpCon[5] & 0xF0) == ((byte)unbinary("01100000") & 0xF0)) { // HLT
-      stop = true;
+      halted = true;
     } 
     if (instPhase == 4 && (cmpCon[5] & 0xF0) == ((byte)unbinary("01110000") & 0xF0)) { // LDA 1
       moveData(6, 7);
@@ -806,7 +769,7 @@ void moveData(int s, int d) { // Set up "data carrier"
     }
     tty = cmpHeight * (d % 4) + cmpHeight / 2;
   }
-  fbit = (src == 3 || src == 6 || src == 7);
+  fourbit = (src == 3 || src == 6 || src == 7);
   /*if (src == 1) {
    ALUopAnim = 1;
    }*/
@@ -879,7 +842,7 @@ void updateMove() { // Update "data carrier"
 void drawParts() { // Draw the processor view (not in draw() because too long)
   translate(0, 0, 1);
   // Upper-upper left vertical line
-  if ((src == 0 || des == 0) && !stop) {
+  if ((src == 0 || des == 0) && !halted) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -888,7 +851,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
   }
   line(cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 2 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
   // Upper-lower left vertical line
-  if ((src <= 1 || des <= 1) && !stop) {
+  if ((src <= 1 || des <= 1) && !halted) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -897,7 +860,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
   }
   line(cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 2 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 3 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
   // Lower-upper left vertical line
-  if ((src <= 2 || des <= 2) && !stop) {
+  if ((src <= 2 || des <= 2) && !halted) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -906,7 +869,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
   }
   line(cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 3 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 4 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
   // Lower-lower left vertical line
-  if (((src <= 3 || des <= 3) && !stop) || PCinc) {
+  if (((src <= 3 || des <= 3) && !halted) || PCinc) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -916,7 +879,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
   line(cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 4 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 4 + padding + 100);
 
   // Upper-upper left horizontal line
-  if ((src == 0 || des == 0) && !stop) {
+  if ((src == 0 || des == 0) && !halted) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -925,7 +888,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
   }
   line(cmpWidth - padding, cmpHeight - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
   // Upper-lower left horizontal line
-  if ((src == 1 || des == 1) && !stop) {
+  if ((src == 1 || des == 1) && !halted) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -934,7 +897,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
   }
   line(cmpWidth - padding, cmpHeight * 2 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 2 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
   // Lower-upper left horizontal line
-  if ((src == 2 || des == 2) && !stop) {
+  if ((src == 2 || des == 2) && !halted) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -943,7 +906,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
   }
   line(cmpWidth - padding, cmpHeight * 3 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 3 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
   // Lower-lower left horizontal line
-  if (((src == 3 || des == 3) && !stop) || PCinc) {
+  if (((src == 3 || des == 3) && !halted) || PCinc) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -952,7 +915,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
   }
   line(cmpWidth - padding, cmpHeight * 4 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 - 50 - (cmpWidth + busWidth / 2 - 50 - cmpWidth) / 2, cmpHeight * 4 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
 
-  if ((src == 4 || des == 4) && !stop) {
+  if ((src == 4 || des == 4) && !halted) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -960,7 +923,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
     strokeWeight(2);
   }
   line(cmpWidth + busWidth / 2 + 25 + (cmpWidth + busWidth + padding - (cmpWidth + busWidth / 2 + 25)) / 2, cmpHeight - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 + 25 + (cmpWidth + busWidth + padding - (cmpWidth + busWidth / 2 + 25)) / 2, cmpHeight * 2 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
-  if (((src <= 5 & src >= 4) || (des <= 5 && des >= 4)) && !stop) {
+  if (((src <= 5 & src >= 4) || (des <= 5 && des >= 4)) && !halted) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -968,7 +931,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
     strokeWeight(2);
   }
   line(cmpWidth + busWidth / 2 + 25 + (cmpWidth + busWidth + padding - (cmpWidth + busWidth / 2 + 25)) / 2, cmpHeight * 2 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 + 25 + (cmpWidth + busWidth + padding - (cmpWidth + busWidth / 2 + 25)) / 2, cmpHeight * 3 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
-  if (((src <= 6 & src >= 4) || (des <= 6 && des >= 4)) && !stop) {
+  if (((src <= 6 & src >= 4) || (des <= 6 && des >= 4)) && !halted) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -976,7 +939,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
     strokeWeight(2);
   }
   line(cmpWidth + busWidth / 2 + 25 + (cmpWidth + busWidth + padding - (cmpWidth + busWidth / 2 + 25)) / 2, cmpHeight * 3 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 + 25 + (cmpWidth + busWidth + padding - (cmpWidth + busWidth / 2 + 25)) / 2, cmpHeight * 4 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
-  if (((src <= 7 & src >= 4) || (des <= 7 && des >= 4)) && !stop) {
+  if (((src <= 7 & src >= 4) || (des <= 7 && des >= 4)) && !halted) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -985,7 +948,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
   }
   line(cmpWidth + busWidth / 2 + 25 + (cmpWidth + busWidth + padding - (cmpWidth + busWidth / 2 + 25)) / 2, cmpHeight * 4 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth / 2 + 25 + (cmpWidth + busWidth + padding - (cmpWidth + busWidth / 2 + 25)) / 2, cmpHeight * 4 + padding + 100);
 
-  if ((src == 4 || des == 4) && !stop) {
+  if ((src == 4 || des == 4) && !halted) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -993,7 +956,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
     strokeWeight(2);
   }
   line(cmpWidth + busWidth / 2 + 25 + (cmpWidth + busWidth + padding - (cmpWidth + busWidth / 2 + 25)) / 2, cmpHeight - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth + padding, cmpHeight - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
-  if ((src == 5 || des == 5) && !stop) {
+  if ((src == 5 || des == 5) && !halted) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -1001,7 +964,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
     strokeWeight(2);
   }
   line(cmpWidth + busWidth / 2 + 25 + (cmpWidth + busWidth + padding - (cmpWidth + busWidth / 2 + 25)) / 2, cmpHeight * 2 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth + padding, cmpHeight * 2 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
-  if ((src == 6 || des == 6) && !stop) {
+  if ((src == 6 || des == 6) && !halted) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -1009,7 +972,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
     strokeWeight(2);
   }
   line(cmpWidth + busWidth / 2 + 25 + (cmpWidth + busWidth + padding - (cmpWidth + busWidth / 2 + 25)) / 2, cmpHeight * 3 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth + padding, cmpHeight * 3 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
-  if ((src == 7 || des == 7) && !stop) {
+  if ((src == 7 || des == 7) && !halted) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -1018,7 +981,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
   }
   line(cmpWidth + busWidth / 2 + 25 + (cmpWidth + busWidth + padding - (cmpWidth + busWidth / 2 + 25)) / 2, cmpHeight * 4 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2, cmpWidth + busWidth + padding, cmpHeight * 4 - padding - (cmpHeight - padding - (cmpHeight / 2 + 25)) / 2);
 
-  if ((src == 8 || des == 8) && !stop) {
+  if ((src == 8 || des == 8) && !halted) {
     stroke(0, 0, 255);
     strokeWeight(10);
   } else {
@@ -1235,7 +1198,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
   fill(255, 0, 0);
   textFont(segment);
   String dispStr = str(cmpCon[4]);
-  if (umode) {
+  if (uMode) {
     dispStr = str(cmpCon[4] & 0xFF);
   }
   text(dispStr, cmpWidth * 2 + busWidth + cmpWidth / 2 + 50, cmpHeight + 30, 33);
@@ -1413,7 +1376,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
   box(cmpWidth * 2 + busWidth - padding * 2, (height + 25) - (cmpHeight * 4 + padding + 50) - padding * 2 - 50, 30);
   translate(0, 30, 16);
   stroke(0);
-  fill(255 - int(!stop && ((speed == 0 && keyPressed && key == ' ') || (speed != 0 && millis() - lastTick < 1000 / speed / 2))) * 255, 255 - int(!stop && ((speed == 0 && keyPressed && key == ' ') || (speed != 0 && millis() - lastTick < 1000 / speed / 2))) * 255, 255);
+  fill(255 - int(!halted && ((speed == 0 && keyPressed && key == ' ') || (speed != 0 && millis() - lastTick < 1000 / speed / 2))) * 255, 255 - int(!halted && ((speed == 0 && keyPressed && key == ' ') || (speed != 0 && millis() - lastTick < 1000 / speed / 2))) * 255, 255);
   ellipse((cmpWidth / 2 + busWidth / 4 - padding / 2 + 50) - 105, 0, 20, 20);
   fill(255 - int(instPhase == 1) * 255, 255 - int(instPhase == 1) * 255, 255);
   ellipse((cmpWidth / 2 + busWidth / 4 - padding / 2 + 50) - 15, 0, 20, 20);
@@ -1452,7 +1415,7 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
     } else {
       data = cmpCon[src];
     }
-    if (!fbit) {
+    if (!fourbit) {
       fill(255 - (data & unbinary("10000000")) * 255, 255 - (data & unbinary("10000000"))* 255, 255);
       ellipse(-70, 0, 15, 15);
       fill(255 - (data & unbinary("01000000")) * 255, 255 - (data & unbinary("01000000")) * 255, 255);
@@ -1463,13 +1426,13 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
       ellipse(-10, 0, 15, 15);
     }
     fill(255 - (data & unbinary("00001000")) * 255, 255 - (data & unbinary("00001000")) * 255, 255);
-    ellipse(10 - int(fbit) * 40, 0, 15, 15);
+    ellipse(10 - int(fourbit) * 40, 0, 15, 15);
     fill(255 - (data & unbinary("00000100")) * 255, 255 - (data & unbinary("00000100")) * 255, 255);
-    ellipse(30 - int(fbit) * 40, 0, 15, 15);
+    ellipse(30 - int(fourbit) * 40, 0, 15, 15);
     fill(255 - (data & unbinary("00000010")) * 255, 255 - (data & unbinary("00000010")) * 255, 255);
-    ellipse(50 - int(fbit) * 40, 0, 15, 15);
+    ellipse(50 - int(fourbit) * 40, 0, 15, 15);
     fill(255 - (data & unbinary("00000001")) * 255, 255 - (data & unbinary("00000001")) * 255, 255);
-    ellipse(70 - int(fbit) * 40, 0, 15, 15);
+    ellipse(70 - int(fourbit) * 40, 0, 15, 15);
     translate(0, 0, -6);
 
     translate(-tx, -ty, -11);
