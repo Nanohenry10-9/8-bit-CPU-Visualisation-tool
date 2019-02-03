@@ -1437,10 +1437,4 @@ void drawParts() { // Draw the processor view (not in draw() because too long)
 
     translate(-tx, -ty, -11);
   }
-  /*if (ALUopAnim != 0) {
-   translate(cmpWidth / 2, cmpHeight / 2 + ALUopAnim);
-   fill(255, 0, 0);
-   sphere(50);
-   translate(cmpWidth / -2, cmpHeight / -2 - ALUopAnim);
-   }*/
 }

@@ -1,4 +1,4 @@
-# 8-bit CPU Visualization tool
+# 8-bit CPU visualisation tool
 Tool for visualising and teaching the inner workings of a simple 8-bit processor.
 
 To run this, you need to install [Processing 3](http://processing.org), make sure the `cpu_visualisation` directory contains the `data` directory and the `cpu_visualisation.pde` file and then run the `.pde` file from the Processing IDE.
@@ -13,7 +13,7 @@ At this moment, there is no standalone executable, so it has to be run from the 
 ## Manual
 **Please note that this is a sketch of the manual and is not complete. Full manual will be provided soon.**
 
-This manual will demonstrate how to set up, start and use the CPU-Visualization tool.
+This manual will demonstrate how to set up, start and use the CPU-visualisation tool.
 
 ### Setting up
 
