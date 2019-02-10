@@ -10,7 +10,7 @@ int src = 9, des = 9; // Source and destination registers (values > 8 means not 
 boolean fourbit; // 4-bit "data carrier" mode
 
 PFont font, segment; // Fonts for general text and display
-PImage twitter; // Twitter-handle :)
+PImage twitter; // Twitter-handle
 
 float speed = 0.5; // Clock frequency
 String speedStr = "0.5Hz"; // Clock frequency display string
@@ -19,7 +19,7 @@ String speedStr = "0.5Hz"; // Clock frequency display string
 
 int angY, angX; // Cube angles in y- and x-directions (sideways and up/down)
 
-float osx, osy; // Camera location (offset) 
+float osx, osy; // Camera location (offset)
 float zoom = 2000; // Zoom (default 2000)
 
 boolean rotLeft, rotRight; // Rotation towards left/right
